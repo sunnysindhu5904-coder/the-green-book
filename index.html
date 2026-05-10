@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>The Green Book — Trading Journal</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; color: #1a1a1a; background: #fff; display: flex; overflow-x: hidden; }
+
+    /* --- LOGO STYLING --- */
+    .logo-container { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -0.5px; }
+    .logo-icon { width: 32px; height: 32px; filter: drop-shadow(0 0 5px rgba(30, 126, 52, 0.3)); }
+
+    /* --- SIDEBAR STYLES --- */
+    .sidebar {
+      width: 60px; height: 100vh; background: #f4fbf5; border-right: 1px solid #e0f0e3;
+      position: sticky; top: 0; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow: hidden; z-index: 1000; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; padding-top: 20px;
+    }
+    .sidebar.expanded { width: 320px; align-items: stretch; }
+    .sidebar-item {
+      width: 100%; padding: 12px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: #1e7e34; transition: background 0.2s; border-radius: 8px; margin-bottom: 10px;
+    }
+    .sidebar-item:hover { background: #e8f5e9; }
+    .item-label { display: none; font-weight: 700; font-size: 14px; margin-left: 12px; white-space: nowrap; }
+    .sidebar.expanded .item-label { display: block; }
+    .sidebar.expanded .sidebar-item { justify-content: flex-start; padding: 12px 20px; }
+
+    /* --- CALENDAR --- */
+    .calendar-wrapper { opacity: 0; visibility: hidden; padding: 0 20px 20px; transition: opacity 0.2s ease; }
+    .sidebar.expanded .calendar-wrapper { opacity: 1; visibility: visible; }
+    .calendar-container { background: #fff; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #e0f0e3; }
+    .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    .calendar-header h3 { font-size: 15px; font-weight: 700; color: #1e7e34; }
+    .nav-btn { background: #e8f5e9; border: none; color: #1e7e34; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; }
+    .day-name { font-size: 11px; font-weight: 700; color: #888; margin-bottom: 5px; }
+    .day { font-size: 12px; padding: 6px 0; border-radius: 4px; color: #444; cursor: pointer; transition: background 0.2s; }
+    .day:not(.empty):hover { background: #e8f5e9; color: #1e7e34; }
+    .day.today { background: #1e7e34 !important; color: #fff !important; font-weight: bold; }
+    .day.empty { color: #ccc; cursor: default; }
+    
+    /* --- SMART FEEDBACK WIDGET --- */
+    .smart-feedback {
+      margin-top: 20px; background: #fff; border-radius: 12px; padding: 15px;
+      border: 1px solid #e0f0e3; box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    }
+    .smart-feedback h4 { font-size: 12px; color: #1e7e34; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }
+    .feedback-text { font-size: 13px; color: #555; line-height: 1.4; font-style: italic; }
+
+    /* --- MODAL STYLES --- */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 2000;
+      backdrop-filter: blur(4px);
+    }
+    .modal-content {
+      background: #fff; width: 90%; max-width: 450px; border-radius: 20px; padding: 30px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2); animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .modal-header h2 { font-size: 22px; color: #1e7e34; }
+    .close-modal { font-size: 24px; cursor: pointer; color: #aaa; border: none; background: none; }
+    
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 5px; color: #555; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 15px;
+    }
+    .form-group input:focus { border-color: #1e7e34; outline: none; }
+    .modal-footer { margin-top: 25px; }
+    .save-btn {
+      width: 100%; background: #1e7e34; color: #fff; padding: 14px; border: none;
+      border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; transition: background 0.2s;
+    }
+    .save-btn:hover { background: #155d25; }
+
+    /* --- MAIN CONTENT WRAPPER --- */
+    .main-content { flex-grow: 1; }
+
+    /* ORIGINAL STYLES */
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 60px; border-bottom: 1px solid #eee; }
+    nav .logo { font-size: 22px; font-weight: 700; color: #1e7e34; }
+    nav ul { list-style: none; display: flex; gap: 30px; }
+    nav ul a { text-decoration: none; color: #444; font-size: 15px; }
+    nav .cta-btn { background: #1e7e34; color: #fff; padding: 10px 22px; border-radius: 8px; text-decoration: none; font-weight: 600; }
+    .hero { text-align: center; padding: 100px 20px 80px; background: linear-gradient(135deg, #e8f5e9 0%, #fff 100%); }
+    .hero h1 { font-size: 48px; font-weight: 800; line-height: 1.2; max-width: 700px; margin: 0 auto 20px; }
+    .hero h1 span { color: #1e7e34; }
+    .hero p { font-size: 20px; color: #555; max-width: 560px; margin: 0 auto 40px; }
+    .hero-btn { background: #1e7e34; color: #fff; padding: 16px 36px; border-radius: 10px; font-size: 18px; font-weight: 700; text-decoration: none; display: inline-block; }
+    .hero-sub { margin-top: 16px; font-size: 14px; color: #888; }
+    .how { padding: 80px 60px; text-align: center; }
+    .how h2 { font-size: 36px; font-weight: 700; margin-bottom: 12px; }
+    .how .subtitle { color: #666; font-size: 18px; margin-bottom: 60px; }
+    .steps { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; max-width: 900px; margin: 0 auto; }
+    .step { max-width: 240px; }
+    .step-num { width: 52px; height: 52px; background: #1e7e34; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; margin: 0 auto 20px; }
+    .step h3 { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+    .step p { color: #666; line-height: 1.6; }
+    .features { padding: 80px 60px; text-align: center; background: #f9fdf9; }
+    .features h2 { font-size: 36px; font-weight: 700; margin-bottom: 12px; }
+    .features .subtitle { color: #666; font-size: 18px; margin-bottom: 60px; }
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 32px; max-width: 1000px; margin: 0 auto; }
+    .feature-card { background: #fff; border-radius: 16px; padding: 36px 28px; text-align: left; border: 1px solid #e0f0e3; }
+    .feature-card .icon { font-size: 36px; margin-bottom: 16px; }
+    .feature-card h3 { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+    .feature-card p { color: #666; line-height: 1.6; }
+    .pricing { padding: 80px 60px; text-align: center; }
+    .pricing h2 { font-size: 36px; font-weight: 700; margin-bottom: 12px; }
+    .pricing .subtitle { color: #666; font-size: 18px; margin-bottom: 60px; }
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; max-width: 800px; margin: 0 auto; }
+    .pricing-card { background: #fff; border-radius: 16px; padding: 40px 28px; border: 2px solid #eee; position: relative; }
+    .pricing-card.popular { border-color: #1e7e34; }
+    .badge { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: #1e7e34; color: #fff; padding: 4px 18px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+    .pricing-card h3 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    .pricing-card .price { font-size: 42px; font-weight: 800; color: #1e7e34; margin: 16px 0; }
+    .pricing-card .price span { font-size: 16px; color: #888; }
+    .pricing-card ul { list-style: none; text-align: left; margin: 20px 0 30px; }
+    .pricing-card ul li { padding: 8px 0; color: #555; border-bottom: 1px solid #f0f0f0; }
+    .pricing-card ul li::before { content: "✓ "; color: #1e7e34; font-weight: 700; }
+    .plan-btn { display: block; background: #1e7e34; color: #fff; padding: 14px; border-radius: 10px; font-weight: 700; text-decoration: none; }
+    .plan-btn.outline { background: transparent; border: 2px solid #1e7e34; color: #1e7e34; }
+    .cta-banner { background: #1e7e34; color: #fff; text-align: center; padding: 80px 20px; }
+    .cta-banner h2 { font-size: 38px; font-weight: 800; margin-bottom: 16px; }
+    .cta-banner p { font-size: 18px; margin-bottom: 36px; opacity: 0.85; }
+    .cta-banner a { background: #fff; color: #1e7e34; padding: 16px 40px; border-radius: 10px; font-size: 18px; font-weight: 700; text-decoration: none; }
+    .contact-section { padding: 80px 60px; text-align: center; background: #fff; border-top: 1px solid #eee; }
+    .contact-section h2 { font-size: 36px; font-weight: 700; margin-bottom: 12px; }
+    .contact-section p { color: #666; margin-bottom: 30px; font-size: 18px; }
+    .telegram-btn { display: inline-flex; align-items: center; background: #0088cc; color: #fff; padding: 16px 40px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 18px; transition: background 0.2s; }
+    .telegram-btn:hover { background: #0077b5; }
+    footer { padding: 40px 60px; border-top: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+    footer .logo { font-size: 18px; font-weight: 700; color: #1e7e34; }
+    footer ul { list-style: none; display: flex; gap: 24px; }
+    footer ul a { text-decoration: none; color: #666; font-size: 14px; }
+    footer p { color: #aaa; font-size: 14px; }
+  </style>
+</head>
+<body>
+
+<!-- INPUT MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modalDateLabel">Log Trade</h2>
+      <button class="close-modal" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="form-group">
+      <label>Instrument</label>
+      <input type="text" id="tradeInst" placeholder="e.g. NIFTY 22400 CE">
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <div class="form-group" style="flex: 1;">
+        <label>Entry Price</label>
+        <input type="number" id="tradeEntry" placeholder="0.00">
+      </div>
+      <div class="form-group" style="flex: 1;">
+        <label>Exit Price</label>
+        <input type="number" id="tradeExit" placeholder="0.00">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Trade Emotion</label>
+      <select id="tradeEmotion">
+        <option value="neutral">Neutral 😐</option>
+        <option value="confident">Confident 😎</option>
+        <option value="anxious">Anxious 😰</option>
+        <option value="greedy">Greedy 🤑</option>
+        <option value="disciplined">Disciplined 🧘</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="tradeNotes" rows="3" placeholder="What did you see?"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="save-btn" onclick="processSmartTrade()">Save to Green Book</button>
+    </div>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-item" onclick="toggleSidebar()">
+    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3" y="4" width="18" height="18" rx="2" stroke="#1e7e34" stroke-width="2"/>
+      <path d="M3 9H21" stroke="#1e7e34" stroke-width="2"/>
+      <path d="M7 2V6" stroke="#1e7e34" stroke-width="2" stroke-linecap="round"/>
+      <path d="M17 2V6" stroke="#1e7e34" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="7" cy="13" r="1" fill="#1e7e34"/><circle cx="12" cy="13" r="1" fill="#1e7e34"/><circle cx="17" cy="13" r="1" fill="#1e7e34"/>
+      <circle cx="7" cy="17" r="1" fill="#1e7e34"/><circle cx="12" cy="17" r="1" fill="#1e7e34"/>
+    </svg>
+    <span class="item-label">TRADING CALENDAR</span>
+  </div>
+  <div class="calendar-wrapper">
+    <div class="calendar-container">
+      <div class="calendar-header">
+        <h3 id="monthYear">Month Year</h3>
+        <div>
+          <button class="nav-btn" onclick="changeMonth(-1)">❮</button>
+          <button class="nav-btn" onclick="changeMonth(1)">❯</button>
+        </div>
+      </div>
+      <div class="calendar-grid" id="calendarGrid"></div>
+    </div>
+
+    <!-- SMART FEEDBACK WIDGET (ADDED) -->
+    <div class="smart-feedback">
+      <h4>Smart Insights</h4>
+      <p id="feedbackDisplay" class="feedback-text">"Your journal is empty. Log a trade to get behavioral feedback."</p>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<div class="main-content">
+  <nav>
+    <div class="logo logo-container">
+      <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="2" width="16" height="20" rx="2" fill="#1e7e34" />
+        <path d="M8 6H16" stroke="white" stroke-width="2" stroke-linecap="round"/><path d="M8 10H16" stroke="white" stroke-width="2" stroke-linecap="round"/><path d="M8 14H12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="18" cy="18" r="4" fill="#4ade80" />
+        <path d="M16.5 18.5L17.5 19.5L19.5 16.5" stroke="#1e7e34" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      The Green Book
+    </div>
+    <ul>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+    </ul>
+    <a href="#waitlist" class="cta-btn">Get Early Access</a>
+  </nav>
+
+  <section class="hero">
+    <h1>Your trading story,<br/><span>written in green.</span></h1>
+    <p>The Green Book automatically syncs your Groww trades — focus on improving, not logging.</p>
+    <a href="#waitlist" class="hero-btn">Get Early Access — It's Free</a>
+    <p class="hero-sub">Join traders already on the waitlist · No credit card needed</p>
+  </section>
+
+  <section class="how" id="how">
+    <h2>How it works</h2>
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><h3>Connect Groww</h3><p>Link your account securely.</p></div>
+      <div class="step"><div class="step-num">2</div><h3>Automatic Logging</h3><p>Your journal fills itself.</p></div>
+      <div class="step"><div class="step-num">3</div><h3>Discover Edge</h3><p>Find what actually works.</p></div>
+    </div>
+  </section>
+
+  <section class="features" id="features">
+    <h2>Everything you need to improve</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="icon">🔗</div>
+        <h3>Auto-import from Groww</h3>
+        <p>No CSV uploads. No manual entry. Your trades sync automatically.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">📊</div>
+        <h3>Instant Analytics</h3>
+        <p>Win rate, P&L, average risk/reward calculated automatically.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">📓</div>
+        <h3>Trade Reflection</h3>
+        <p>Add notes, emotions, and tags to each trade. Spot behavioral patterns.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">🔍</div>
+        <h3>Performance Patterns</h3>
+        <p>Filter by strategy, time of day, or instrument.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="pricing" id="pricing">
+    <h2>Simple pricing</h2>
+    <div class="pricing-grid">
+      <div class="pricing-card">
+        <h3>Free</h3>
+        <div class="price">₹0 <span>/ forever</span></div>
+        <a href="#waitlist" class="plan-btn outline">Get Started</a>
+      </div>
+      <div class="pricing-card popular">
+        <div class="badge">Most Popular</div>
+        <h3>Pro</h3>
+        <div class="price">₹299 <span>/ month</span></div>
+        <a href="#waitlist" class="plan-btn">Get Early Access</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-banner" id="waitlist">
+    <h2>Start writing your story in green</h2>
+    <a href="mailto:your@email.com">Join the Waitlist</a>
+  </section>
+
+  <section class="contact-section">
+    <h2>Have Questions?</h2>
+    <a href="https://t.me/yourusername" class="telegram-btn" target="_blank">Chat on Telegram</a>
+  </section>
+
+  <footer>
+    <div class="logo">📗 The Green Book</div>
+    <p>© 2026 The Green Book. All rights reserved.</p>
+  </footer>
+</div>
+
+<script>
+  let currentDate = new Date();
+  const modal = document.getElementById('modalOverlay');
+
+  function toggleSidebar() { document.getElementById('sidebar').classList.toggle('expanded'); }
+
+  function openModal(day) {
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    document.getElementById('modalDateLabel').innerText = `Log Trade: ${day} ${monthNames[currentDate.getMonth()]}`;
+    modal.style.display = 'flex';
+  }
+
+  function closeModal() { modal.style.display = 'none'; }
+  window.onclick = function(event) { if (event.target == modal) closeModal(); }
+
+  // SMART FEEDBACK ENGINE
+  function processSmartTrade() {
+    const entry = parseFloat(document.getElementById('tradeEntry').value);
+    const exit = parseFloat(document.getElementById('tradeExit').value);
+    const emotion = document.getElementById('tradeEmotion').value;
+    const feedbackDisp = document.getElementById('feedbackDisplay');
+
+    if (isNaN(entry) || isNaN(exit)) {
+      alert("Please enter prices to see Smart Insights.");
+      return;
+    }
+
+    const isProfit = exit > entry;
+    
+    // Feedback Logic
+    let message = "";
+    if (isProfit && emotion === 'greedy') {
+      message = "💰 Profit made, but you felt 'Greedy'. Be careful not to overtrade tomorrow to protect your gains.";
+    } else if (!isProfit && emotion === 'anxious') {
+      message = "😰 You felt 'Anxious' and took a loss. Next time, try reducing your position size until you feel calm.";
+    } else if (isProfit && emotion === 'disciplined') {
+      message = "🧘 Perfection! You followed your rules and was rewarded. This is how professional trading is done.";
+    } else if (!isProfit && emotion === 'confident') {
+      message = "📉 A confident loss is just a business expense. If you followed your plan, don't change a thing.";
+    } else {
+      message = "✅ Trade logged. Continue tracking your emotions to see behavioral patterns.";
+    }
+
+    feedbackDisp.innerText = `"${message}"`;
+    feedbackDisp.style.color = isProfit ? "#1e7e34" : "#d32f2f";
+    
+    closeModal();
+    // Clear inputs for next time
+    document.getElementById('tradeEntry').value = '';
+    document.getElementById('tradeExit').value = '';
+  }
+
+  function renderCalendar() {
+    const monthYear = document.getElementById('monthYear');
+    const calendarGrid = document.getElementById('calendarGrid');
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    
+    monthYear.innerText = `${monthNames[month]} ${year}`;
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+
+    calendarGrid.innerHTML = '';
+    ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(d => calendarGrid.innerHTML += `<div class="day-name">${d}</div>`);
+    for (let i = 0; i < firstDayIndex; i++) calendarGrid.innerHTML += `<div class="day empty"></div>`;
+    for (let i = 1; i <= lastDay; i++) {
+      const isToday = i === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
+      const dayDiv = document.createElement('div');
+      dayDiv.className = `day ${isToday ? 'today' : ''}`;
+      dayDiv.innerText = i;
+      dayDiv.onclick = (function(n) { return function() { openModal(n); }; })(i);
+      calendarGrid.appendChild(dayDiv);
+    }
+  }
+
+  function changeMonth(step) {
+    currentDate.setMonth(currentDate.getMonth() + step);
+    renderCalendar();
+  }
+  renderCalendar();
+</script>
+
+</body>
+</html>
